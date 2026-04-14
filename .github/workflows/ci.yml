@@ -19,44 +19,30 @@ jobs:
     name: 🧪 Playwright Tests (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     strategy:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
-
     steps:
-      - name: 📥 코드 체크아웃
-        uses: actions/checkout@v4
-
-      - name: 🟢 Node.js 설정
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: 📦 의존성 설치
-        run: npm install
-
-      - name: 🎭 Playwright 브라우저 설치
-        run: npx playwright install --with-deps ${{ matrix.browser }}
-
-      - name: 🏃 E2E 테스트 실행
-        run: npx playwright test tests/e2e --project=${{ matrix.browser }}
+      - run: npm install
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - run: npx playwright test tests/e2e --project=${{ matrix.browser }}
         continue-on-error: true
         env:
           CI: true
-
-      - name: 🔌 API 테스트 실행
+      - name: API 테스트
         if: matrix.browser == 'chromium'
-        run: npx playwright test tests/api --project=${{ matrix.browser }}
+        run: npx playwright test tests/api --project=chromium
         continue-on-error: true
         env:
           CI: true
-
-      - name: 📊 리포트 업로드
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.browser }}
+          name: report-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 7
 
@@ -65,46 +51,32 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: always()
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
-      - name: 📥 코드 체크아웃
-        uses: actions/checkout@v4
-
-      - name: 🟢 Node.js 설정
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: 📦 의존성 설치
-        run: npm install
-
-      - name: 🎭 Playwright 설치
-        run: npx playwright install --with-deps chromium
-
-      - name: 🏃 테스트 실행 (리포트용)
-        run: npx playwright test tests/e2e tests/api --project=chromium
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test tests/e2e tests/api --project=chromium
         continue-on-error: true
         env:
           CI: true
-
-      - name: 📁 배포 폴더 구성
+      - name: 배포 폴더 구성
         run: |
           mkdir -p deploy/report
           cp docs/index.html deploy/index.html
-          cp -r playwright-report/. deploy/report/
-
-      - name: 📄 GitHub Pages 설정
-        uses: actions/configure-pages@v4
-
-      - name: 📤 Pages 아티팩트 업로드
-        uses: actions/upload-pages-artifact@v3
+          if [ -d "playwright-report" ] && [ "$(ls -A playwright-report)" ]; then
+            cp -r playwright-report/. deploy/report/
+          else
+            echo "<html><body>리포트 생성 중...</body></html>" > deploy/report/index.html
+          fi
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: deploy/
-
-      - name: 🚀 GitHub Pages 배포
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
