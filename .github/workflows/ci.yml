@@ -53,7 +53,7 @@ jobs:
         env:
           CI: true
 
-      - name: 📊 리포트 업로드 (브라우저별)
+      - name: 📊 리포트 업로드
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.browser }}
@@ -61,7 +61,7 @@ jobs:
           retention-days: 7
 
   deploy-report:
-    name: 📄 리포트 GitHub Pages 배포
+    name: 📄 GitHub Pages 배포
     needs: test
     runs-on: ubuntu-latest
     if: always()
@@ -85,19 +85,25 @@ jobs:
       - name: 🎭 Playwright 설치
         run: npx playwright install --with-deps chromium
 
-      - name: 🏃 전체 테스트 실행 (리포트용)
+      - name: 🏃 테스트 실행 (리포트용)
         run: npx playwright test tests/e2e tests/api --project=chromium
         continue-on-error: true
         env:
           CI: true
 
+      - name: 📁 배포 폴더 구성
+        run: |
+          mkdir -p deploy/report
+          cp docs/index.html deploy/index.html
+          cp -r playwright-report/. deploy/report/
+
       - name: 📄 GitHub Pages 설정
         uses: actions/configure-pages@v4
 
-      - name: 📤 리포트 업로드
+      - name: 📤 Pages 아티팩트 업로드
         uses: actions/upload-pages-artifact@v3
         with:
-          path: playwright-report/
+          path: deploy/
 
       - name: 🚀 GitHub Pages 배포
         id: deployment
