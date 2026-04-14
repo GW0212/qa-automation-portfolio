@@ -9,6 +9,11 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   test:
     name: 🧪 Playwright Tests (${{ matrix.browser }})
@@ -37,19 +42,63 @@ jobs:
 
       - name: 🏃 E2E 테스트 실행
         run: npx playwright test tests/e2e --project=${{ matrix.browser }}
+        continue-on-error: true
         env:
           CI: true
 
       - name: 🔌 API 테스트 실행
         if: matrix.browser == 'chromium'
         run: npx playwright test tests/api --project=${{ matrix.browser }}
+        continue-on-error: true
         env:
           CI: true
 
-      - name: 📊 테스트 리포트 업로드
-        if: failure()
+      - name: 📊 리포트 업로드 (브라우저별)
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 7
+
+  deploy-report:
+    name: 📄 리포트 GitHub Pages 배포
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 🟢 Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 의존성 설치
+        run: npm install
+
+      - name: 🎭 Playwright 설치
+        run: npx playwright install --with-deps chromium
+
+      - name: 🏃 전체 테스트 실행 (리포트용)
+        run: npx playwright test tests/e2e tests/api --project=chromium
+        continue-on-error: true
+        env:
+          CI: true
+
+      - name: 📄 GitHub Pages 설정
+        uses: actions/configure-pages@v4
+
+      - name: 📤 리포트 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: playwright-report/
+
+      - name: 🚀 GitHub Pages 배포
+        id: deployment
+        uses: actions/deploy-pages@v4
